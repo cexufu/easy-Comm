@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>舆情分析 - 简单传播</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">
+            <div class="logo">简</div>
+            <span>简单传播</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="topic.html">热点选题</a>
+            <a href="sentiment.html" class="active">舆情分析</a>
+            <a href="audience.html">受众分析</a>
+            <a href="plan.html">内容策划</a>
+        </div>
+    </nav>
+
+    <main class="page-container">
+        <div class="page-header">
+            <div class="page-title">
+                <a href="index.html" class="page-back">← 返回</a>
+                <h1>🔍 舆情分析</h1>
+                <span class="subtitle">深度分析舆情走势与风险</span>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-secondary" onclick="downloadPDF()">📄 下载PDF</button>
+                <button class="btn btn-primary" onclick="analyze()" id="analyzeBtn">🔍 开始分析</button>
+            </div>
+        </div>
+
+        <!-- 分析需求 -->
+        <div class="input-card">
+            <div class="input-card-title">🎯 分析需求</div>
+            <div class="input-group">
+                <label>核心话题</label>
+                <input type="text" id="topic" placeholder="输入您想分析的核心话题或事件...">
+            </div>
+            <div class="input-group">
+                <label>分析维度 <span class="optional">选填</span></label>
+                <input type="text" id="dimensions" placeholder="如：风险点、传播路径、受众反应、重点平台...">
+            </div>
+        </div>
+
+        <!-- 分析结果 -->
+        <div id="resultArea">
+            <p style="text-align:center;color:#999;padding:40px">
+                输入话题后点击「开始分析」，获取深度舆情报告
+            </p>
+        </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script>
+        const userInfo = JSON.parse(localStorage.getItem('simple_user_info') || '{}');
+        
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substring(2, 15);
+        }
+        
+        async function callCozeAPI(prompt, onChunk, onDone) {
+            const sessionId = generateSessionId();
+            const url = `${CONFIG.API_BASE}/stream_run`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + CONFIG.BEARER_TOKEN,
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({
+                        content: {
+                            query: {
+                                prompt: [{ type: 'text', content: { text: prompt } }]
+                            }
+                        },
+                        type: 'query',
+                        session_id: sessionId,
+                        project_id: '7639400504908480539'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errText = await response.text();
+                    onChunk('请求失败: ' + errText);
+                    return;
+                }
+                
+                if (!response.body) {
+                    onChunk('无响应内容');
+                    return;
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split('\n\n');
+                    buffer = blocks.pop() ?? '';
+                    
+                    for (const block of blocks) {
+                        const dataLines = block
+                            .split('\n')
+                            .filter(line => line.startsWith('data:'))
+                            .map(line => line.slice(5).trim());
+                        
+                        for (const dataText of dataLines) {
+                            try {
+                                const parsed = JSON.parse(dataText);
+                                if (parsed.content) {
+                                    onChunk(parsed.content);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                
+                onDone();
+            } catch (error) {
+                onChunk('网络错误: ' + error.message);
+                onDone();
+            }
+        }
+        
+        function formatResult(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        }
+        
+        async function analyze() {
+            const topic = document.getElementById('topic').value.trim();
+            if (!topic) {
+                alert('请输入要分析的话题');
+                return;
+            }
+            
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 分析中';
+            
+            const dimensions = document.getElementById('dimensions').value;
+            
+            const prompt = `你是简单传播的AI舆情分析助手。现在是 ${new Date().toLocaleDateString('zh-CN')}。
+
+用户信息：
+- 身份：${userInfo.identity}
+- 公司：${userInfo.company}
+- 行业：${userInfo.industry}
+
+请执行以下工作流：
+1. 调用【热点选题池】技能，收集与"${topic}"相关的近期热点信息
+2. 调用【舆情分析】技能，基于收集的信息和用户输入，分析舆情风险
+
+分析维度：${dimensions || '舆情风险点、传播路径、受众反应、重点平台、应对策略'}
+
+输出格式：
+## 📊 舆情分析报告
+
+### 🔍 信息收集
+[基于热点选题池收集的内容]
+
+### ⚠️ 风险识别
+[主要舆情风险点]
+
+### 📢 传播路径
+[可能的传播路径预测]
+
+### 👥 受众反应
+[不同受众群体可能的反应]
+
+### 🎯 应对策略
+[具体的应对建议]
+
+以Markdown格式输出。`;
+            
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = '<div class="loading">AI正在分析舆情...</div>';
+            
+            let resultText = '';
+            await callCozeAPI(
+                prompt,
+                (chunk) => { resultText += chunk; resultArea.innerHTML = `<div class="result-card"><div class="result-header"><div class="result-title">📊 舆情分析报告</div></div><div class="result-content">${formatResult(resultText)}<span class="typing"></span></div></div>`; },
+                () => {
+                    resultArea.innerHTML = `<div class="result-card"><div class="result-header"><div class="result-title">📊 舆情分析报告</div></div><div class="result-content">${formatResult(resultText)}</div></div>`;
+                    btn.disabled = false;
+                    btn.innerHTML = '🔍 开始分析';
+                }
+            );
+        }
+        
+        function downloadPDF() {
+            alert('PDF下载功能开发中，请稍候...');
+        }
+    </script>
+</body>
+</html>

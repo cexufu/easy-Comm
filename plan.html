@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容策划 - 简单传播</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">
+            <div class="logo">简</div>
+            <span>简单传播</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="topic.html">热点选题</a>
+            <a href="sentiment.html">舆情分析</a>
+            <a href="audience.html">受众分析</a>
+            <a href="plan.html" class="active">内容策划</a>
+        </div>
+    </nav>
+
+    <main class="page-container">
+        <div class="page-header">
+            <div class="page-title">
+                <a href="index.html" class="page-back">← 返回</a>
+                <h1>📋 内容策划</h1>
+                <span class="subtitle">生成完整传播策划案</span>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-secondary" onclick="exportJSON()">📥 导出JSON</button>
+                <button class="btn btn-secondary" onclick="downloadPDF()">📄 下载PDF</button>
+                <button class="btn btn-primary" onclick="generate()" id="genBtn">✨ 生成策划案</button>
+            </div>
+        </div>
+
+        <!-- 策划需求 -->
+        <div class="input-card">
+            <div class="input-card-title">🎯 策划需求 <span style="color:#ff6b6b;font-weight:normal">* 必填</span></div>
+            <div class="input-group">
+                <label>核心话题</label>
+                <input type="text" id="topic" placeholder="输入本次传播的核心话题...">
+            </div>
+            <div class="input-group">
+                <label>特殊要求 <span class="optional">选填</span></label>
+                <textarea id="requirements" placeholder="输入任何特殊要求或注意事项..."></textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="generate()">
+                🔄 生成策划案
+            </button>
+        </div>
+
+        <!-- 策划结果 -->
+        <div id="resultArea">
+            <p style="text-align:center;color:#999;padding:40px">
+                输入核心话题后点击「生成策划案」，获取完整传播方案
+            </p>
+        </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script>
+        const userInfo = JSON.parse(localStorage.getItem('simple_user_info') || '{}');
+        
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substring(2, 15);
+        }
+        
+        async function callCozeAPI(prompt, onChunk, onDone) {
+            const sessionId = generateSessionId();
+            const url = `${CONFIG.API_BASE}/stream_run`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + CONFIG.BEARER_TOKEN,
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({
+                        content: {
+                            query: {
+                                prompt: [{ type: 'text', content: { text: prompt } }]
+                            }
+                        },
+                        type: 'query',
+                        session_id: sessionId,
+                        project_id: '7639400504908480539'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errText = await response.text();
+                    onChunk('请求失败: ' + errText);
+                    return;
+                }
+                
+                if (!response.body) {
+                    onChunk('无响应内容');
+                    return;
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split('\n\n');
+                    buffer = blocks.pop() ?? '';
+                    
+                    for (const block of blocks) {
+                        const dataLines = block
+                            .split('\n')
+                            .filter(line => line.startsWith('data:'))
+                            .map(line => line.slice(5).trim());
+                        
+                        for (const dataText of dataLines) {
+                            try {
+                                const parsed = JSON.parse(dataText);
+                                if (parsed.content) {
+                                    onChunk(parsed.content);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                
+                onDone();
+            } catch (error) {
+                onChunk('网络错误: ' + error.message);
+                onDone();
+            }
+        }
+        
+        function formatResult(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        }
+        
+        async function generate() {
+            const topic = document.getElementById('topic').value.trim();
+            if (!topic) {
+                alert('请输入核心话题');
+                return;
+            }
+            
+            const btn = document.getElementById('genBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 生成中';
+            
+            const requirements = document.getElementById('requirements').value.trim();
+            
+            const prompt = `你是简单传播的AI策划专家（百变公关）。现在是 ${new Date().toLocaleDateString('zh-CN')}。
+
+用户信息：
+- 身份：${userInfo.identity}
+- 公司：${userInfo.company}
+- 行业：${userInfo.industry}
+- 城市：${userInfo.city}
+- 传播目标：${userInfo.goal}
+${userInfo.portfolio ? '- 历史案例：' + userInfo.portfolio : ''}
+
+策划需求：
+- 核心话题：${topic}
+${requirements ? '- 特殊要求：' + requirements : ''}
+
+请调用【PR Expert】技能，为用户生成完整的传播策划案。
+
+策划案需包含：
+1. **传播背景与目标**
+2. **核心信息/Key Message**
+3. **目标受众分析**
+4. **传播策略**（整体思路）
+5. **媒介策略**（各平台分配）
+6. **信息分布**（内容节奏）
+7. **传播路径/时间线**
+8. **风险预案**
+9. **效果评估指标**
+
+以Markdown格式输出，结构清晰。`;
+            
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = '<div class="loading">AI正在生成策划案...</div>';
+            
+            let resultText = '';
+            await callCozeAPI(
+                prompt,
+                (chunk) => { resultText += chunk; resultArea.innerHTML = `<div class="result-card"><div class="result-header"><div class="result-title">📋 传播策划案</div></div><div class="result-content">${formatResult(resultText)}<span class="typing"></span></div></div>`; },
+                () => {
+                    resultArea.innerHTML = `<div class="result-card"><div class="result-header"><div class="result-title">📋 传播策划案</div></div><div class="result-content">${formatResult(resultText)}</div></div>`;
+                    btn.disabled = false;
+                    btn.innerHTML = '✨ 生成策划案';
+                }
+            );
+        }
+        
+        function exportJSON() {
+            const resultArea = document.getElementById('resultArea');
+            const content = resultArea.textContent;
+            if (content.includes('请求失败') || content.includes('网络错误') || content.includes('点击')) {
+                alert('请先生成策划案');
+                return;
+            }
+            
+            const data = {
+                userInfo: userInfo,
+                topic: document.getElementById('topic').value,
+                requirements: document.getElementById('requirements').value,
+                result: content,
+                exportTime: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '简单传播_策划案_' + Date.now() + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function downloadPDF() {
+            alert('PDF下载功能开发中，请稍候...');
+        }
+    </script>
+</body>
+</html>

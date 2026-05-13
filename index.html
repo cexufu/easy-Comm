@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单传播 - AI公关传播平台</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">
+            <div class="logo">简</div>
+            <span>简单传播</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="topic.html">热点选题</a>
+            <a href="sentiment.html">舆情分析</a>
+            <a href="audience.html">受众分析</a>
+            <a href="plan.html">内容策划</a>
+        </div>
+        <div class="nav-user">
+            <span>👤</span>
+            <span id="userIdentity">访客</span>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <main class="main-content">
+        <!-- 功能卡片 -->
+        <div class="feature-grid">
+            <a href="topic.html" class="feature-card topic">
+                <div class="feature-header">
+                    <div class="feature-icon">📝</div>
+                    <div class="feature-title">热点选题</div>
+                </div>
+                <p class="feature-desc">基于行业热点池与公关专家视角，智能推荐最适配的选题 TOP5</p>
+                <div class="feature-link">立即使用 →</div>
+            </a>
+            
+            <a href="sentiment.html" class="feature-card sentiment">
+                <div class="feature-header">
+                    <div class="feature-icon">🔍</div>
+                    <div class="feature-title">舆情分析</div>
+                </div>
+                <p class="feature-desc">深度分析舆情走势，智能预警潜在风险，提供应对策略</p>
+                <div class="feature-link">立即使用 →</div>
+            </a>
+            
+            <a href="audience.html" class="feature-card audience">
+                <div class="feature-header">
+                    <div class="feature-icon">🎭</div>
+                    <div class="feature-title">受众分析</div>
+                </div>
+                <p class="feature-desc">多维度受众画像分析，洞察目标群体特征与偏好</p>
+                <div class="feature-link">立即使用 →</div>
+            </a>
+            
+            <a href="plan.html" class="feature-card plan">
+                <div class="feature-header">
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-title">内容策划</div>
+                </div>
+                <p class="feature-desc">基于需求快速生成完整的传播策划案与执行方案</p>
+                <div class="feature-link">立即使用 →</div>
+            </a>
+        </div>
+
+        <!-- 近期热点（自动加载） -->
+        <div class="hot-news" id="hotNewsSection">
+            <div class="section-header">
+                <h2 class="section-title">📰 加载中...</h2>
+            </div>
+            <div class="news-grid" id="newsGrid">
+                <div class="news-card">
+                    <div class="loading" style="padding:20px;text-align:center;color:#999">正在分析热点...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script>
+        const userInfo = JSON.parse(localStorage.getItem('simple_user_info') || '{}');
+        document.getElementById('userIdentity').textContent = userInfo.identity || '访客';
+        
+        // 检查是否有用户信息，没有就跳转入口页
+        if (!userInfo.company && !userInfo.industry) {
+            window.location.href = 'start.html';
+        }
+        
+        // 生成随机session_id
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substring(2, 15);
+        }
+        
+        // 调用 Coze API（流式）
+        async function callCozeAPI(prompt, onChunk, onDone) {
+            const sessionId = generateSessionId();
+            const url = `${CONFIG.API_BASE}/stream_run`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + CONFIG.BEARER_TOKEN,
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({
+                        content: {
+                            query: {
+                                prompt: [{ type: 'text', content: { text: prompt } }]
+                            }
+                        },
+                        type: 'query',
+                        session_id: sessionId,
+                        project_id: '7639400504908480539'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errText = await response.text();
+                    onChunk('请求失败: ' + errText);
+                    return;
+                }
+                
+                if (!response.body) {
+                    onChunk('无响应内容');
+                    return;
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split('\n\n');
+                    buffer = blocks.pop() ?? '';
+                    
+                    for (const block of blocks) {
+                        const dataLines = block
+                            .split('\n')
+                            .filter(line => line.startsWith('data:'))
+                            .map(line => line.slice(5).trim());
+                        
+                        if (dataLines.length === 0) continue;
+                        
+                        for (const dataText of dataLines) {
+                            try {
+                                const parsed = JSON.parse(dataText);
+                                if (parsed.content) {
+                                    onChunk(parsed.content);
+                                }
+                            } catch (e) {
+                                // 忽略解析错误
+                            }
+                        }
+                    }
+                }
+                
+                onDone();
+            } catch (error) {
+                onChunk('网络错误: ' + error.message);
+                onDone();
+            }
+        }
+        
+        // 格式化结果
+        function formatResult(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        }
+        
+        // 主页自动加载热点分析
+        async function loadHotNews() {
+            if (!userInfo.industry) return;
+            
+            const prompt = `你是简单传播的AI助手。现在是 ${new Date().toLocaleDateString('zh-CN')}。
+
+用户信息：
+- 身份：${userInfo.identity}
+- 公司：${userInfo.company}
+- 行业：${userInfo.industry}
+
+请执行以下工作流：
+1. 调用【热点选题池】技能，查询今日向前一个月内的行业热点
+2. 基于收集到的热点，用AI分析并分类为：
+   - 【🔥 近期行业热点】（最多5条，每条带跳转链接）
+   - 【⚠️ 近期舆情风险】（最多3条，每条带跳转链接）
+   - 【📈 近期行业趋势】（最多3条，每条带跳转链接）
+
+输出格式：
+## 🔥 近期行业热点
+1. [标题](链接) - 简述
+...
+
+## ⚠️ 近期舆情风险
+1. [标题](链接) - 简述
+...
+
+## 📈 近期行业趋势
+1. [标题](链接) - 简述
+...`;
+            
+            const section = document.getElementById('hotNewsSection');
+            let resultText = '';
+            
+            await callCozeAPI(
+                prompt,
+                (chunk) => { resultText += chunk; },
+                () => {
+                    if (resultText) {
+                        section.innerHTML = `
+                            <div class="section-header">
+                                <h2 class="section-title">📰 近期热点分析</h2>
+                                <button class="btn btn-secondary" onclick="location.reload()">🔄 刷新</button>
+                            </div>
+                            <div class="news-content">${formatResult(resultText)}</div>
+                        `;
+                    } else {
+                        section.innerHTML = `
+                            <div class="section-header">
+                                <h2 class="section-title">📰 近期热点分析</h2>
+                            </div>
+                            <div class="news-content" style="color:#999;padding:20px">暂无数据，请稍后重试</div>
+                        `;
+                    }
+                }
+            );
+        }
+        
+        // 页面加载时自动执行
+        loadHotNews();
+    </script>
+</body>
+</html>
