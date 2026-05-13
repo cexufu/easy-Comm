@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>受众分析 - 简单传播</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">
+            <div class="logo">简</div>
+            <span>简单传播</span>
+        </a>
+        <div class="nav-links">
+            <a href="index.html">首页</a>
+            <a href="topic.html">热点选题</a>
+            <a href="sentiment.html">舆情分析</a>
+            <a href="audience.html" class="active">受众分析</a>
+            <a href="plan.html">内容策划</a>
+        </div>
+    </nav>
+
+    <main class="page-container">
+        <div class="page-header">
+            <div class="page-title">
+                <a href="index.html" class="page-back">← 返回</a>
+                <h1>🎭 受众分析</h1>
+                <span class="subtitle">深入洞察目标群体</span>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-secondary" onclick="downloadPDF()">📄 下载PDF</button>
+                <button class="btn btn-primary" onclick="analyze()" id="analyzeBtn">🔍 开始分析</button>
+            </div>
+        </div>
+
+        <!-- 切换标签 -->
+        <div style="display:flex;gap:12px;margin-bottom:24px">
+            <button class="btn btn-primary" id="tab1Btn" onclick="switchTab(1)">受众画像</button>
+            <button class="btn btn-secondary" id="tab2Btn" onclick="switchTab(2)">传播反馈分析</button>
+        </div>
+
+        <!-- 分析内容 -->
+        <div class="input-card">
+            <div class="input-card-title">📝 传播内容分析 <span style="color:#999;font-weight:normal">(可选)</span></div>
+            <div class="input-group">
+                <label>输入要分析的内容</label>
+                <textarea id="content" placeholder="输入要传播的文本、策划案或内容..."></textarea>
+            </div>
+            <div class="input-group">
+                <label>传播目标</label>
+                <input type="text" id="goal" placeholder="如：提升品牌认知度、促进产品购买">
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="analyze()">
+                🔄 分析传播效果
+            </button>
+        </div>
+
+        <!-- 分析结果 -->
+        <div id="resultArea">
+            <p style="text-align:center;color:#999;padding:40px">
+                输入内容后点击「分析传播效果」，获取受众反馈预测
+            </p>
+        </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script>
+        const userInfo = JSON.parse(localStorage.getItem('simple_user_info') || '{}');
+        let currentTab = 1;
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab1Btn').className = tab === 1 ? 'btn btn-primary' : 'btn btn-secondary';
+            document.getElementById('tab2Btn').className = tab === 2 ? 'btn btn-primary' : 'btn btn-secondary';
+        }
+        
+        async function callCozeAPI(prompt) {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/v3/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.PAT_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        bot_id: CONFIG.BOT_ID,
+                        user_id: 'simple_user_' + Date.now(),
+                        stream: false,
+                        auto_save_history: true,
+                        additional_messages: [{
+                            role: 'user',
+                            content: prompt,
+                            content_type: 'text'
+                        }]
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.code === 0 && data.data && data.data.messages) {
+                    const aiMessage = data.data.messages.find(m => m.role === 'assistant' && m.type === 'answer');
+                    return aiMessage ? aiMessage.content : '抱歉，暂时无法获取回复。';
+                }
+                return '请求失败: ' + (data.msg || '未知错误');
+            } catch (error) {
+                return '网络错误: ' + error.message;
+            }
+        }
+        
+        async function analyze() {
+            const content = document.getElementById('content').value.trim();
+            const goal = document.getElementById('goal').value.trim();
+            
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 分析中<span class="loading"></span>';
+            
+            let prompt;
+            if (currentTab === 1) {
+                prompt = `你是简单传播的AI受众分析专家。用户信息：${JSON.stringify(userInfo)}
+用户身份：${userInfo.identity}
+传播目标：${goal || '未指定'}
+
+请生成目标受众画像，包括：
+1. 核心受众特征（年龄、职业、兴趣）
+2. 内容偏好
+3. 活跃平台
+4. 决策路径
+5. 传播触达建议
+
+以Markdown格式输出。`;
+            } else {
+                prompt = `你是简单传播的AI传播反馈分析专家（百变怪）。
+用户信息：${JSON.stringify(userInfo)}
+
+请对以下内容进行受众反应预测分析：
+${content ? '内容：' + content : ''}
+${goal ? '目标：' + goal : ''}
+
+请模拟不同受众群体可能的反应：
+1. 核心支持者
+2. 中立观望者
+3. 潜在批评者
+4. 沉默大多数
+5. 传播风险预警
+
+以Markdown格式输出。`;
+            }
+            
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = '<div class="loading">AI正在分析受众...</div>';
+            
+            const result = await callCozeAPI(prompt);
+            resultArea.innerHTML = `<div class="result-card">
+                <div class="result-header">
+                    <div class="result-title">${currentTab === 1 ? '👥 受众画像报告' : '🎭 传播反馈预测'}</div>
+                </div>
+                <div class="result-content">${result.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+            </div>`;
+            
+            btn.disabled = false;
+            btn.innerHTML = '🔍 开始分析';
+        }
+        
+        function downloadPDF() {
+            alert('PDF下载功能开发中，请稍候...');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单传播 - AI公关传播平台</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="welcome-container">
+        <div class="welcome-card">
+            <div class="logo">
+                <span>简</span>
+            </div>
+            <h1>欢迎使用简单传播</h1>
+            <p class="subtitle">智能公关传播平台 · 让传播更简单</p>
+            
+            <div class="section-title">请选择您的身份类型</div>
+            <div class="identity-grid">
+                <button class="identity-btn" data-identity="企业公关">企业公关</button>
+                <button class="identity-btn" data-identity="自媒体创作者">自媒体创作者</button>
+                <button class="identity-btn" data-identity="媒体记者">媒体记者</button>
+                <button class="identity-btn" data-identity="社群运营">社群运营</button>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label>公司名称</label>
+                    <input type="text" id="company" placeholder="请输入公司名称">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>所属行业</label>
+                        <input type="text" id="industry" placeholder="如：科技、金融、教育">
+                    </div>
+                    <div class="form-group">
+                        <label>所在城市</label>
+                        <input type="text" id="city" placeholder="如：北京、上海">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>传播目标</label>
+                    <input type="text" id="goal" placeholder="如：提升品牌知名度、新品推广">
+                </div>
+                <div class="form-group">
+                    <label>历史传播/作品/案例 <span class="optional">选填</span></label>
+                    <textarea id="portfolio" placeholder="粘贴您的历史传播案例、爆款内容、代表报道、活动案例等（我们会据此了解您的传播风格和效果）"></textarea>
+                </div>
+            </div>
+            
+            <button class="start-btn" onclick="startApp()">开始使用 →</button>
+        </div>
+    </div>
+    
+    <script src="config.js"></script>
+    <script>
+        let selectedIdentity = '';
+        
+        document.querySelectorAll('.identity-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.identity-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedIdentity = btn.dataset.identity;
+            });
+        });
+        
+        function startApp() {
+            const userInfo = {
+                identity: selectedIdentity,
+                company: document.getElementById('company').value,
+                industry: document.getElementById('industry').value,
+                city: document.getElementById('city').value,
+                goal: document.getElementById('goal').value,
+                portfolio: document.getElementById('portfolio').value
+            };
+            
+            localStorage.setItem('simple_user_info', JSON.stringify(userInfo));
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
