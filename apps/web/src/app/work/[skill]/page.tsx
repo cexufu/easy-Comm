@@ -14,7 +14,7 @@ const config = {
   topics: {
     title: "热点选题",
     eyebrow: "Trend + PR",
-    placeholder: "可选：输入希望重点关注的关键词，例如 AI 应用、品牌信任、城市产业...",
+    placeholder: "可选：输入希望重点关注的关键词，例如 AI 应用、品牌信任、城市产业、未来五天传播主题...",
     button: "生成 TOP5",
   },
   sentiment: {
@@ -38,6 +38,11 @@ const config = {
 } as const;
 
 type SkillKey = keyof typeof config;
+type ProcessStep = SkillResponse["process"][number];
+type StreamEvent =
+  | { type: "step"; step: ProcessStep }
+  | { type: "final"; result: SkillResponse }
+  | { type: "error"; message: string };
 
 export default function SkillPage() {
   const params = useParams<{ skill: string }>();
@@ -47,6 +52,7 @@ export default function SkillPage() {
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [input, setInput] = useState("");
   const [result, setResult] = useState<SkillResponse | null>(null);
+  const [process, setProcess] = useState<ProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -74,7 +80,10 @@ export default function SkillPage() {
     if (!storedResult) return;
     try {
       const parsed = skillResponseSchema.safeParse(JSON.parse(storedResult));
-      if (parsed.success) setResult(parsed.data);
+      if (parsed.success) {
+        setResult(parsed.data);
+        setProcess(parsed.data.process);
+      }
     } catch {
       localStorage.removeItem(`simple-pr-result-${skill}`);
     }
@@ -93,22 +102,55 @@ export default function SkillPage() {
   const run = async () => {
     if (!profile || !validSkill) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 55000);
+    const timer = setTimeout(() => controller.abort(), 70000);
     setLoading(true);
     setError("");
     setResult(null);
+    setProcess([]);
 
     try {
-      const response = await fetch("/api/skills", {
+      const response = await fetch("/api/skills/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skill, profile, input }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error("生成失败，请稍后重试");
-      const parsed = skillResponseSchema.parse(await response.json());
-      setResult(parsed);
-      localStorage.setItem(`simple-pr-result-${skill}`, JSON.stringify(parsed));
+      if (!response.ok || !response.body) throw new Error("生成失败，请稍后重试");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as StreamEvent;
+          if (event.type === "step") {
+            setProcess((previous) => {
+              const existingIndex = previous.findIndex((step) => step.title === event.step.title);
+              if (existingIndex === -1) return [...previous, event.step];
+              return previous.map((step, index) =>
+                index === existingIndex ? event.step : step,
+              );
+            });
+          }
+          if (event.type === "final") {
+            const parsed = skillResponseSchema.parse(event.result);
+            setResult(parsed);
+            setProcess(parsed.process);
+            localStorage.setItem(`simple-pr-result-${skill}`, JSON.stringify(parsed));
+          }
+          if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        }
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "生成失败");
     } finally {
@@ -119,6 +161,11 @@ export default function SkillPage() {
 
   const resultMarkdown = useMemo(() => {
     if (!result) return "";
+    const processText = result.process.length
+      ? `## 分析过程\n\n${result.process
+          .map((step) => `- **${step.title}**：${step.detail}`)
+          .join("\n")}\n\n`
+      : "";
     const sections = result.sections
       .map(
         (section) =>
@@ -133,7 +180,7 @@ export default function SkillPage() {
     const warnings = result.warnings.length
       ? `\n\n## 说明\n\n${result.warnings.map((item) => `- ${item}`).join("\n")}`
       : "";
-    return `# ${result.title}\n\n${result.summary}\n\n${sections}${knowledge}${warnings}\n`;
+    return `# ${result.title}\n\n${result.summary}\n\n${processText}${sections}${knowledge}${warnings}\n`;
   }, [result]);
 
   const copyResult = async () => {
@@ -200,18 +247,48 @@ export default function SkillPage() {
               </Link>
             </div>
             <p className="muted" style={{ marginTop: 18, marginBottom: 0, fontSize: 13 }}>
-              系统只召回与本次任务相关的知识片段，不会把整套知识库发送给模型。
+              系统会展示可审计的工作过程：需求理解、知识召回、候选整理、评估筛选和完整结果。
             </p>
           </div>
 
           <div>
-            {loading && <div className="loading">检索知识并生成结构化结果...</div>}
+            {(loading || process.length > 0) && (
+              <article className="card process-card">
+                <div className="result-toolbar">
+                  <span className={`status-pill ${loading ? "running" : "completed"}`}>
+                    {loading ? "分析进行中" : "过程已完成"}
+                  </span>
+                </div>
+                <h2 style={{ marginTop: 18 }}>分析过程</h2>
+                <div className="process-list">
+                  {process.map((step, index) => (
+                    <div className={`process-step ${step.status}`} key={`${step.title}-${index}`}>
+                      <span className="process-index">{index + 1}</span>
+                      <div>
+                        <h3>{step.title}</h3>
+                        <p>{step.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {loading && (
+                    <div className="process-step running">
+                      <span className="process-index pulse" />
+                      <div>
+                        <h3>等待完整结果</h3>
+                        <p>模型正在形成最终结构化输出，完成后会自动显示在下方。</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+            )}
+
             {error && <div className="error">{error}</div>}
-            {!loading && !error && !result && (
-              <div className="card empty muted">填写需求后，结果会在这里分块展示。</div>
+            {!loading && !error && !result && process.length === 0 && (
+              <div className="card empty muted">填写需求后，分析过程和最终结果会在这里显示。</div>
             )}
             {result && (
-              <article className="card">
+              <article className="card result-card">
                 <div className="result-toolbar">
                   <span className={`status-pill ${result.status}`}>
                     {result.status === "completed" ? "分析完成" : "降级结果"}

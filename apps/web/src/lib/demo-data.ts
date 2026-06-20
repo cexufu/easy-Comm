@@ -46,6 +46,7 @@ export function demoSkillResult(
   profile: CompanyProfile,
   input: string,
   knowledge: Array<{ path: string; heading: string }>,
+  process: SkillResponse["process"] = [],
 ): SkillResponse {
   const titles: Record<string, string> = {
     topics: "热点选题 TOP5",
@@ -111,6 +112,7 @@ export function demoSkillResult(
     status: "completed",
     title: titles[skill] ?? "分析结果",
     summary: `已基于 ${profile.companyName} 的企业资料和按需知识检索生成本地演示结果。`,
+    process,
     sections: sectionMap[skill] ?? [],
     knowledge,
     warnings: ["当前运行在 demo 模式，热点与舆情不是实时数据。"],

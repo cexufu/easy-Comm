@@ -53,6 +53,15 @@ export const skillResponseSchema = z.object({
   status: z.enum(["completed", "degraded"]),
   title: z.string(),
   summary: z.string(),
+  process: z
+    .array(
+      z.object({
+        title: z.string(),
+        detail: z.string(),
+        status: z.enum(["running", "completed"]),
+      }),
+    )
+    .default([]),
   sections: z.array(
     z.object({
       heading: z.string(),
