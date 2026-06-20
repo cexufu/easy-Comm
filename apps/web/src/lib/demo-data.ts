@@ -49,27 +49,42 @@ export function demoSkillResult(
   process: SkillResponse["process"] = [],
 ): SkillResponse {
   const titles: Record<string, string> = {
-    topics: "热点选题 TOP5",
+    topics: "未来五天热点选题 TOP5",
     sentiment: "舆情风险研判",
     audience: "目标受众分析",
     planning: "传播策划案",
   };
 
+  const topicInput = input || profile.goal;
   const sectionMap: Record<string, SkillResponse["sections"]> = {
     topics: [
       {
-        heading: "推荐方向",
+        heading: "TOP5 选题与当下触发点",
         items: [
-          `${profile.industry}真实应用案例：用具体结果回应市场关注`,
-          `${profile.city}产业观察：企业如何借助本地生态成长`,
-          `围绕“${profile.goal}”建立连续内容栏目`,
-          "用客户问题而非产品功能作为传播起点",
-          "发布行业误区与实操清单，建立专业可信度",
+          `选题一：${profile.companyName}把“${topicInput}”做成 5 天连续短视频实验。触发点：用户正在追问 AI 产品到底能不能落地；第一条内容拍“一个真实任务从输入到成片的全过程”。`,
+          `选题二：用一组真实用户场景回应“AI 不是替代人，而是降低表达门槛”。触发点：AI 生成内容争议持续存在；切入点是人机协作边界。`,
+          `选题三：发起“未来五天内容共创挑战”。触发点：平台更容易放大可参与议题；第一天发布模板，邀请用户提交需求。`,
+          `选题四：拆解一个热点行业案例，说明 ${profile.industry} 企业如何避免空泛 AI 叙事。触发点：市场已经疲劳于概念包装；用反向清单建立专业感。`,
+          `选题五：发布 CEO/创始人观点稿，主题是“为什么现在的传播更需要证据链”。触发点：品牌信任下降，用户更重视可验证事实。`,
         ],
       },
       {
-        heading: "筛选原则",
-        items: ["企业关联真实", "目标受众明确", "能够提供证据", "风险可控"],
+        heading: "五天落地节奏",
+        items: [
+          "Day 1：确认一个最有证据的场景，发布短视频或图文开篇。",
+          "Day 2：补一条过程内容，展示素材、提示词、人工审核和修改前后对比。",
+          "Day 3：发布用户参与或内部试用反馈，避免只讲功能。",
+          "Day 4：输出观点稿或长图，回应“AI 内容是否会同质化”的质疑。",
+          "Day 5：整理成复盘帖，沉淀数据、评论问题和下一轮共创入口。",
+        ],
+      },
+      {
+        heading: "筛选与舍弃",
+        items: [
+          "保留标准：未来五天能执行、企业有证据、平台表达清楚、风险可控。",
+          "舍弃方向：单纯喊“AI 赋能”“品牌升级”“行业趋势”的宽泛选题。",
+          "需要人工补源：平台热榜、行业新闻、品牌自有案例、用户评论截图或真实试用数据。",
+        ],
       },
     ],
     sentiment: [
@@ -111,10 +126,13 @@ export function demoSkillResult(
     requestId: crypto.randomUUID(),
     status: "completed",
     title: titles[skill] ?? "分析结果",
-    summary: `已基于 ${profile.companyName} 的企业资料和按需知识检索生成本地演示结果。`,
+    summary:
+      skill === "topics"
+        ? `已围绕 ${profile.companyName} 的目标生成未来五天可执行的选题草案；实时热榜与新闻源仍需人工补充核验。`
+        : `已基于 ${profile.companyName} 的企业资料和按需知识检索生成本地演示结果。`,
     process,
     sections: sectionMap[skill] ?? [],
     knowledge,
-    warnings: ["当前运行在 demo 模式，热点与舆情不是实时数据。"],
+    warnings: ["当前未接入实时热榜/新闻数据源；涉及“当下热点”的判断需要人工补源确认。"],
   };
 }
