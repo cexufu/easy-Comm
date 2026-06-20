@@ -107,4 +107,7 @@ docker run --rm -p 3000:3000 `
 
 ## 上线说明
 
-详见 [docs/launch-beta.md](docs/launch-beta.md)。
+详见：
+
+- [docs/launch-beta.md](docs/launch-beta.md)
+- [docs/render-deploy.md](docs/render-deploy.md)
