@@ -1,30 +1,110 @@
-# 简单传播
+# 简单传播 Easy Comm
 
-AI 公关传播平台，为市场营销和传媒人打造。
+中文 AI 公关传播工作台，面向企业创始人、品牌团队、公关团队和内容运营，帮助用户完成热点选题、舆情分析、受众分析和内容策划。
 
-## 功能
+## 当前定位
 
-- 📝 **热点选题**：基于行业热点池与公关专家视角，智能推荐最适配的选题
-- 🔍 **舆情分析**：深度分析舆情走势，智能预警潜在风险，提供应对策略
-- 🎭 **受众分析**：多维度受众画像分析，洞察目标群体特征与偏好
-- 📋 **内容策划**：基于需求快速生成完整的传播策划案与执行方案
+- 中文界面。
+- 海外部署优先。
+- 100 个邀请用户以内先做 Web Beta。
+- 不做国内应用商店、小程序、公开自助注册或自动媒体分发。
 
-## 使用
+## 应用入口
 
-1. 访问入口页，填写您的身份和基本信息
-2. 进入主页，选择需要的功能模块
-3. 输入内容，获取 AI 分析和策划建议
+```text
+apps/web
+```
 
-## 技术
+核心能力：
 
-- 前端：HTML + CSS + JavaScript（纯静态，无需后端）
-- AI 能力：通过 Coze API 调用
+- 企业资料入驻与本地保存
+- 首页风险提示、能力入口和行业热点区域
+- 热点选题、舆情分析、受众分析、内容策划
+- 基于 `knowledge/` 的轻量知识召回
+- OpenAI-compatible 模型接入，默认支持 `demo` 模式
+- `/api/health` 健康检查
 
-## 部署
+## 本地运行
 
-本项目使用 GitHub Pages 托管，访问地址：
-https://cexufu.github.io/easy-Comm/
+```powershell
+cd apps/web
+npm install
+npm.cmd run dev
+```
 
----
+打开：
 
-*让传播更简单*
+```text
+http://localhost:3000
+```
+
+## 环境变量
+
+复制 `.env.example` 为 `apps/web/.env.local`，或在部署平台配置同名环境变量。
+
+```dotenv
+MODEL_PROVIDER=demo
+
+MODEL_BASE_URL=https://api.openai.com/v1
+MODEL_API_KEY=
+MODEL_NAME=
+MODEL_TIMEOUT_MS=45000
+KNOWLEDGE_MAX_CHUNKS=5
+KNOWLEDGE_MAX_CHARS=12000
+```
+
+切换真实模型时：
+
+```dotenv
+MODEL_PROVIDER=openai-compatible
+MODEL_BASE_URL=https://api.openai.com/v1
+MODEL_API_KEY=your-server-side-key
+MODEL_NAME=your-model
+```
+
+不要把真实 API Key 提交到 GitHub。
+
+## 验证
+
+```powershell
+cd apps/web
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+部署后检查：
+
+```text
+GET /api/health
+```
+
+预期 `status` 为 `ok`，并且 `knowledge.collections` 大于 `0`。
+
+## Docker 部署
+
+从仓库根目录构建：
+
+```powershell
+docker build -t easy-comm-beta .
+```
+
+Demo 模式运行：
+
+```powershell
+docker run --rm -p 3000:3000 -e MODEL_PROVIDER=demo easy-comm-beta
+```
+
+生产模型运行：
+
+```powershell
+docker run --rm -p 3000:3000 `
+  -e MODEL_PROVIDER=openai-compatible `
+  -e MODEL_BASE_URL=https://api.openai.com/v1 `
+  -e MODEL_API_KEY=your-server-side-key `
+  -e MODEL_NAME=your-model `
+  easy-comm-beta
+```
+
+## 上线说明
+
+详见 [docs/launch-beta.md](docs/launch-beta.md)。

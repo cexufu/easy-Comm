@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: easy-comm-beta
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: MODEL_PROVIDER
+        value: demo
+      - key: MODEL_BASE_URL
+        value: https://api.openai.com/v1
+      - key: MODEL_API_KEY
+        sync: false
+      - key: MODEL_NAME
+        sync: false
+      - key: MODEL_TIMEOUT_MS
+        value: 45000
+      - key: KNOWLEDGE_MAX_CHUNKS
+        value: 5
+      - key: KNOWLEDGE_MAX_CHARS
+        value: 12000

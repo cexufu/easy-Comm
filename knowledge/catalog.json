@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-13",
+  "defaults": {
+    "chunkTokens": 500,
+    "chunkOverlapTokens": 60,
+    "retrievalMode": "hybrid",
+    "defaultTopK": 4,
+    "maxTopK": 8,
+    "maxContextTokens": 6000
+  },
+  "collections": [
+    {
+      "id": "chameleon",
+      "root": "knowledge/chameleon",
+      "skills": ["chameleon"],
+      "tags": ["audience", "psychology", "sociology", "evaluation"],
+      "freshness": "stable",
+      "defaultTopK": 4,
+      "maxContextTokens": 4000
+    },
+    {
+      "id": "pr-expert",
+      "root": "knowledge/pr-expert",
+      "skills": ["pr-expert", "content-creation-expert"],
+      "tags": ["public-relations", "brand", "media", "strategy", "compliance"],
+      "freshness": "review",
+      "defaultTopK": 5,
+      "maxContextTokens": 6000,
+      "volatilePaths": [
+        "references/regulatory-info.md",
+        "references/media-landscape.md",
+        "references/public-opinion-environment.md",
+        "references/fintech-opinion.md",
+        "references/ai-media-guide.md"
+      ]
+    },
+    {
+      "id": "public-opinion-analyst",
+      "root": "knowledge/public-opinion-analyst",
+      "skills": ["public-opinion-analyst", "pr-expert"],
+      "tags": ["public-opinion", "crisis", "risk", "compliance", "narrative"],
+      "freshness": "review",
+      "defaultTopK": 5,
+      "maxContextTokens": 6000,
+      "volatilePaths": ["references/compliance-guidelines.md"]
+    },
+    {
+      "id": "trend-hotspot-pool",
+      "root": "knowledge/trend-hotspot-pool",
+      "skills": ["trend-hotspot-pool", "pr-expert"],
+      "tags": ["trend", "calendar", "quality", "safety"],
+      "freshness": "volatile",
+      "defaultTopK": 2,
+      "maxContextTokens": 2000,
+      "note": "This collection guides retrieval and filtering; current hotspots must come from live-data."
+    },
+    {
+      "id": "content-creation-expert",
+      "root": "knowledge/content-creation-expert",
+      "skills": ["content-creation-expert"],
+      "tags": ["content", "news", "xiaohongshu", "video", "writing", "platform-rules"],
+      "freshness": "review",
+      "defaultTopK": 5,
+      "maxContextTokens": 6000,
+      "excludedPaths": ["assets/顶级短视频文案案例库_100例.docx"]
+    }
+  ]
+}
