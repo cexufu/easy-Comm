@@ -2,6 +2,8 @@
 
 中文 AI 公关传播工作台，面向企业创始人、品牌团队、公关团队和内容运营，帮助用户完成热点选题、舆情分析、受众分析和内容策划。
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/cexufu/easy-Comm)
+
 ## 当前定位
 
 - 中文界面。
