@@ -23,7 +23,7 @@ apps/web
 - 首页风险提示、能力入口和行业热点区域
 - 热点选题、舆情分析、受众分析、内容策划
 - 基于 `knowledge/` 的轻量知识召回
-- OpenAI-compatible 模型接入，默认支持 `demo` 模式
+- OpenAI-compatible 模型接入，默认使用 DeepSeek `deepseek-v4-flash`
 - `/api/health` 健康检查
 
 ## 本地运行
@@ -45,11 +45,11 @@ http://localhost:3000
 复制 `.env.example` 为 `apps/web/.env.local`，或在部署平台配置同名环境变量。
 
 ```dotenv
-MODEL_PROVIDER=demo
+MODEL_PROVIDER=openai-compatible
 
-MODEL_BASE_URL=https://api.openai.com/v1
+MODEL_BASE_URL=https://api.deepseek.com
 MODEL_API_KEY=
-MODEL_NAME=
+MODEL_NAME=deepseek-v4-flash
 MODEL_TIMEOUT_MS=45000
 KNOWLEDGE_MAX_CHUNKS=5
 KNOWLEDGE_MAX_CHARS=12000
