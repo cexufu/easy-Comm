@@ -32,6 +32,8 @@
 - [ ] Implement hybrid knowledge retrieval with filtering, reranking, deduplication, and token budgets.
 - [ ] Add tenant-isolated knowledge storage and deletion.
 - [ ] Add a separate TTL-based live-data store for news and hotspots.
+- [ ] Add source-citation capture for topic selection, including source URL/name, publish time, platform, heat/rank when available, and verification status.
+- [ ] Add a calendar/seasonal-window provider for festivals, solar terms, policy windows, industry events, and seasonal public-life scenes.
 - [ ] Define shared Zod input/output schemas for each skill and API.
 - [ ] Implement a provider-neutral Kimi/OpenAI model gateway.
 - [ ] Add per-stage deadlines and propagate cancellation to all upstream calls.
@@ -39,7 +41,8 @@
 - [ ] Add request IDs, structured logs, latency metrics, fallback metrics, and cost tracking.
 - [ ] Add bounded retries, exponential backoff, circuit breaking, and provider fallback.
 - [ ] Add cache request coalescing and per-user/global concurrency limits.
-- [ ] Build skill orchestration for hotspot + PR top-five selection.
+- [x] Build first skill orchestration for evidence-led hotspot + PR top-five selection.
+- [ ] Replace prompt-only topic evidence with live source retrieval, caching, and citation rendering.
 - [ ] Build current-day risk alert orchestration with a maximum of three alerts.
 - [ ] Add live news/social data providers with citations, caching, retries, and source fallback.
 - [ ] Add company onboarding and profile persistence.

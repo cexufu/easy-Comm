@@ -81,3 +81,11 @@ Context: The user provided a separate career development product release package
 Decision: Preserve the release package as source material and publish the runnable product under `apps/career-overview/`. Use Render Web Service deployment first, with `render.yaml` defining the service root, build command, start command, and required environment variables.
 
 Consequence: The product can be tested locally and deployed as a public web service without creating a native app or mobile app first. Public deployment still requires a Git remote, a Render account, and a server-side `DEEPSEEK_API_KEY`.
+
+## 2026-06-21: Treat Topic Selection as Evidence-Led PR Planning
+
+Context: Historical high-quality PR topic examples showed that useful topic selection is grounded in visible information sources, dates, current events, platform discussions, seasonal windows, interview leads, and execution details. Outputs that only name broad themes such as "AI empowerment" or "brand trust" feel generic and can be used at any time, so they lack news value.
+
+Decision: Require every hotspot topic to start from an explicit evidence anchor and time window before proposing a brand angle. The topic workflow must distinguish verified live sources, source-needed assumptions, industry references, and historical cases. TOP5 recommendations must include source basis, why-now logic, public-interest angle, brand connection, materials, execution path, and risk boundary.
+
+Consequence: The product will produce fewer purely evergreen topics and will more clearly show users why a recommendation is timely and credible. A live data layer remains necessary for production-grade current-event accuracy.

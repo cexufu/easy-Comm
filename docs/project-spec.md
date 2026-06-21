@@ -26,6 +26,16 @@ Build a stable, sellable web application that helps companies discover relevant 
 6. Generate a communication/content plan from the user's requirements.
 7. Show relevant industry hotspots from the latest three days, regardless of positive or negative sentiment.
 
+### Topic Selection Quality Bar
+
+The topic-selection workflow should behave like a PR/editorial planning desk, not a generic theme generator.
+
+- Every recommended topic must have an explicit evidence anchor: a specific date, festival, solar term, seasonal scene, policy window, platform trend, hot event, controversy, industry news item, competitor move, media report, or historical case.
+- Each topic must separate the external news anchor from the brand's communication angle. The product should not present a brand desire as if it were a public hotspot.
+- Every candidate topic should explain why it is worth doing now, why the public or target user would care, and why the brand has a natural right to participate.
+- If live search or trend data is unavailable, the system must label candidates as `待补源`, `行业参照`, or `历史案例`, and must say which source should be verified before publishing.
+- The final TOP5 should include source basis, publication window, public-interest angle, brand connection, first content action, platform, materials, risk boundary, and interview/material/data leads.
+
 ## Features
 
 - Dashboard with risk alerts, skill cards, and three-day industry hotspots.
