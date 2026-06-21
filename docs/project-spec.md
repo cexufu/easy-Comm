@@ -35,6 +35,7 @@ The topic-selection workflow should behave like a PR/editorial planning desk, no
 - Every candidate topic should explain why it is worth doing now, why the public or target user would care, and why the brand has a natural right to participate.
 - If live search or trend data is unavailable, the system must label candidates as `待补源`, `行业参照`, or `历史案例`, and must say which source should be verified before publishing.
 - The final TOP5 should include source basis, publication window, public-interest angle, brand connection, first content action, platform, materials, risk boundary, and interview/material/data leads.
+- Streaming may show the working process, but the final visible result should read like a deliverable topic plan: one section per selected topic, with rationale, evidence, audience, execution plan, scoring direction, and risks inside that topic section.
 
 ## Features
 

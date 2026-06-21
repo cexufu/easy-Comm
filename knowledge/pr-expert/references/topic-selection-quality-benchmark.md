@@ -28,7 +28,13 @@ If the anchor cannot be verified from live data, mark it as `待补源` or `行�
 
 ## Required Topic Shape
 
-Each final TOP5 item should include:
+The final visible result should not be a stack of process tables. It should be a deliverable topic plan:
+
+- A short overview of the week's judgement.
+- One section for each selected topic.
+- A final backup/discard section.
+
+Each final TOP5 topic section should include:
 
 1. Topic title.
 2. Information source basis.
@@ -39,7 +45,10 @@ Each final TOP5 item should include:
 7. First content action.
 8. Platform/channel.
 9. Materials/interview/data leads.
-10. Risk boundary.
+10. Scoring direction.
+11. Target audience.
+12. Risk boundary.
+13. Next action.
 
 ## Anti-Patterns
 

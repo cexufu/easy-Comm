@@ -89,3 +89,11 @@ Context: Historical high-quality PR topic examples showed that useful topic sele
 Decision: Require every hotspot topic to start from an explicit evidence anchor and time window before proposing a brand angle. The topic workflow must distinguish verified live sources, source-needed assumptions, industry references, and historical cases. TOP5 recommendations must include source basis, why-now logic, public-interest angle, brand connection, materials, execution path, and risk boundary.
 
 Consequence: The product will produce fewer purely evergreen topics and will more clearly show users why a recommendation is timely and credible. A live data layer remains necessary for production-grade current-event accuracy.
+
+## 2026-06-21: Present Topic Results as Deliverable Topic Plans
+
+Context: The topic workflow can stream analysis steps, but users expect the final output to resemble a PR topic document: direct recommendations, each with rationale, evidence, audience, execution plan, scoring direction, and risk notes. A final report that exposes separate process tables feels less useful than the historical PDF examples.
+
+Decision: Keep the internal evidence and scoring workflow, but make the final `topics` result one concise overview plus five topic-plan sections and a backup/discard section. Move source basis, scoring, material leads, and execution details inside each topic instead of presenting them as standalone analysis tables.
+
+Consequence: The product remains transparent during streaming while the final deliverable is easier to share with colleagues and execute.
