@@ -54,8 +54,39 @@ function normalizeTitle(title: string) {
   return title
     .toLowerCase()
     .replace(/\s+/g, "")
+    .replace(/&#x[0-9a-f]+;?/gi, "")
     .replace(/[^\p{L}\p{N}]/gu, "")
     .slice(0, 80);
+}
+
+const NOISE_TITLES = new Set([
+  "今日热榜",
+  "榜中榜",
+  "热文库",
+  "公众号",
+  "小部件",
+  "自定义分组",
+  "更多",
+  "首页",
+  "登录",
+  "注册",
+  "关于",
+  "广告",
+  "查看",
+  "客户端",
+  "api",
+  "app",
+]);
+
+function isNoiseTitle(title: string) {
+  const compact = title.replace(/\s+/g, "").toLowerCase();
+  return (
+    !compact ||
+    NOISE_TITLES.has(compact) ||
+    /&#x[0-9a-f]+;?/i.test(title) ||
+    /^更多/.test(compact) ||
+    /^top\s*hub$/i.test(title)
+  );
 }
 
 function isValidUrl(value: string | undefined) {
@@ -66,6 +97,10 @@ function isValidUrl(value: string | undefined) {
   } catch {
     return false;
   }
+}
+
+function isVerifiableHotspot(item: LiveHotspot) {
+  return Boolean(item.title && !isNoiseTitle(item.title) && isValidUrl(item.url));
 }
 
 function isRecent(dateText: string) {
@@ -139,7 +174,7 @@ async function fetchGoogleNews(query: string, signal: AbortSignal): Promise<Live
         confidence: isRecent(publishedAt) ? ("high" as const) : ("medium" as const),
       };
     })
-    .filter((item) => item.title && isValidUrl(item.url));
+    .filter(isVerifiableHotspot);
 }
 
 async function fetchGdelt(query: string, signal: AbortSignal): Promise<LiveHotspot[]> {
@@ -179,7 +214,7 @@ async function fetchGdelt(query: string, signal: AbortSignal): Promise<LiveHotsp
       query,
       confidence: "medium" as const,
     }))
-    .filter((item) => item.title && isValidUrl(item.url));
+    .filter(isVerifiableHotspot);
 }
 
 async function fetchToutiaoHotBoard(signal: AbortSignal): Promise<LiveHotspot[]> {
@@ -219,7 +254,7 @@ async function fetchToutiaoHotBoard(signal: AbortSignal): Promise<LiveHotspot[]>
         confidence: "high" as const,
       };
     })
-    .filter((item) => item.title && isValidUrl(item.url));
+    .filter(isVerifiableHotspot);
 }
 
 async function fetchBaiduHotBoard(signal: AbortSignal): Promise<LiveHotspot[]> {
@@ -253,7 +288,7 @@ async function fetchBaiduHotBoard(signal: AbortSignal): Promise<LiveHotspot[]> {
         confidence: "high" as const,
       };
     })
-    .filter((item) => item.title && isValidUrl(item.url));
+    .filter(isVerifiableHotspot);
 }
 
 function parseTopHubItems(html: string, publisher = "TopHub"): LiveHotspot[] {
@@ -261,6 +296,7 @@ function parseTopHubItems(html: string, publisher = "TopHub"): LiveHotspot[] {
   const anchors = Array.from(html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g));
   const seen = new Set<string>();
   const items: LiveHotspot[] = [];
+  const baseUrl = process.env.TOPHUB_BASE_URL || "https://tophub.today";
 
   for (const [index, match] of anchors.entries()) {
     const href = decodeHtml(match[1] ?? "");
@@ -270,11 +306,20 @@ function parseTopHubItems(html: string, publisher = "TopHub"): LiveHotspot[] {
       .replace(/^\d+\s*/, "")
       .trim();
     if (!title || title.length < 3 || title.length > 80) continue;
-    if (/^(首页|登录|注册|关于|广告|更多|查看|客户端|API)$/i.test(title)) continue;
+    if (isNoiseTitle(title)) continue;
 
     let url: string | undefined;
     try {
-      url = new URL(href, process.env.TOPHUB_BASE_URL || "https://tophub.today").toString();
+      const parsed = new URL(href, baseUrl);
+      const sameSite = parsed.hostname === new URL(baseUrl).hostname;
+      const isDirectoryPage =
+        parsed.pathname === "/" ||
+        parsed.pathname.startsWith("/c/") ||
+        parsed.pathname.startsWith("/sites") ||
+        parsed.pathname.startsWith("/about") ||
+        parsed.pathname.startsWith("/app");
+      if (sameSite && isDirectoryPage) continue;
+      url = parsed.toString();
     } catch {
       url = undefined;
     }
@@ -298,7 +343,7 @@ function parseTopHubItems(html: string, publisher = "TopHub"): LiveHotspot[] {
     if (items.length >= 30) break;
   }
 
-  return items;
+  return items.filter(isVerifiableHotspot);
 }
 
 async function fetchTopHub(signal: AbortSignal): Promise<LiveHotspot[]> {
@@ -308,7 +353,11 @@ async function fetchTopHub(signal: AbortSignal): Promise<LiveHotspot[]> {
     .map((item) => item.trim())
     .filter(Boolean);
 
-  const paths = configuredNodes.length ? configuredNodes : ["/"];
+  // TopHub's home page contains navigation/category links that look like
+  // content. Only crawl explicitly configured board paths.
+  const paths = configuredNodes;
+  if (!paths.length) return [];
+
   const batches = await Promise.allSettled(
     paths.map(async (path) => {
       const target = path.startsWith("http") ? path : `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -359,7 +408,7 @@ async function fetchRssHubHotRoutes(signal: AbortSignal): Promise<LiveHotspot[]>
             confidence: "medium" as const,
           };
         })
-        .filter((item) => item.title && isValidUrl(item.url));
+        .filter(isVerifiableHotspot);
     }),
   );
 
@@ -393,6 +442,7 @@ export async function collectLiveHotspots(
     );
     const merged = batches
       .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+      .filter(isVerifiableHotspot)
       .filter((item) => isRecent(item.publishedAt));
 
     const seen = new Set<string>();
@@ -416,14 +466,16 @@ export function hotspotsToDashboard(
   profile: CompanyProfile,
   hotspots: LiveHotspot[],
 ): DashboardData {
+  const verifiedHotspots = hotspots.filter(isVerifiableHotspot);
+
   return {
-    status: hotspots.length ? "fresh" : "degraded",
+    status: verifiedHotspots.length ? "fresh" : "degraded",
     generatedAt: new Date().toISOString(),
     risks: [],
-    hotTopics: hotspots.map((item) => ({
+    hotTopics: verifiedHotspots.map((item) => ({
       title: item.title,
       summary: item.summary || item.title,
-      fitReason: `来源：${item.query}${item.heatSignal ? `；${item.heatSignal}` : ""}。需再判断与“${profile.industry} / ${profile.goal}”的自然连接。`,
+      fitReason: `来源：${item.publisher}${item.heatSignal ? `；${item.heatSignal}` : ""}。这是可点击核验的公开线索，后续再判断与“${profile.industry} / ${profile.goal}”的自然连接。`,
       risk: "medium",
       tags: [item.sourceType, item.heatSignal ?? item.confidence, profile.industry].slice(0, 5),
       sources: [

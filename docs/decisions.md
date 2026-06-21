@@ -105,3 +105,11 @@ Context: The topic output was falling back to generic demo content when model ge
 Decision: Add a live hotspot collection layer using public sources without API keys. Platform heat signals include TopHub, 今日头条热榜, 百度热搜, and optional self-hosted RSSHub routes; public news grounding includes Google News RSS and GDELT. Feed collected sources into the topic workflow, show them on the dashboard, and make degraded topic results source-backed and contextual rather than generic demos. Expose model error details in warnings for easier deployment debugging.
 
 Consequence: The product now avoids pretending demo content is current information. The live source layer is still a first-pass public-source implementation and should later be replaced or supplemented with stronger Chinese platform/news providers, caching, citation rendering, and observability.
+
+## 2026-06-21: Show Only Verifiable News Links in the Dashboard Hotspot Module
+
+Context: TopHub's home page can expose navigation, category, and widget links that look like content when parsed too broadly. Showing those items as "hotspots" makes the product feel inaccurate and prevents users from verifying why a topic is worth considering.
+
+Decision: Treat the dashboard hotspot area as a public news/hot-list evidence module. Cards must have a valid source URL, publisher, and timestamp. TopHub home-page crawling is disabled by default; TopHub is only used for explicitly configured board paths, and parser noise such as navigation/category titles and encoded icon text is filtered out.
+
+Consequence: The dashboard may show fewer items when sources are unavailable, but it will not present unverifiable or fake-looking cards. Future work should configure specific TopHub nodes and stronger Chinese news/social providers with monitoring.

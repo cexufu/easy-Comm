@@ -296,6 +296,23 @@ h1 {
   line-height: 1.45;
 }
 
+.source-row {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.source-link {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -604,5 +621,10 @@ h1 {
 
   .profile-chip span {
     display: none;
+  }
+
+  .source-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

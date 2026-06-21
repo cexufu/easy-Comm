@@ -43,7 +43,8 @@
 - [ ] Add cache request coalescing and per-user/global concurrency limits.
 - [x] Build first skill orchestration for evidence-led hotspot + PR top-five selection.
 - [x] Add first public-source hotspot collection for dashboard and topic workflow.
-- [ ] Replace first-pass public-source collection with stronger Chinese news/social providers, caching, and citation rendering.
+- [x] Render only verifiable source-linked items in the dashboard hotspot/news module.
+- [ ] Configure specific TopHub board paths and stronger Chinese news/social providers, caching, monitoring, and citation rendering.
 - [ ] Add provider-specific model diagnostics and admin-visible failure logs.
 - [ ] Build current-day risk alert orchestration with a maximum of three alerts.
 - [ ] Add live news/social data providers with citations, caching, retries, and source fallback.

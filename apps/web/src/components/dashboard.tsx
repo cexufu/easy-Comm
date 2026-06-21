@@ -32,6 +32,17 @@ const skills = [
   },
 ];
 
+function formatSourceTime(value: string) {
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return value || "时间待核验";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(time));
+}
+
 export function Dashboard({
   profile,
   onUpdate,
@@ -149,31 +160,48 @@ export function Dashboard({
         <section className="section">
           <div className="section-header">
             <div>
-              <h2>近三日行业热点</h2>
+              <h2>公开新闻与热榜线索</h2>
               <p className="muted">
-                当前为演示数据；接入实时数据源后将显示来源、日期与可信度。
+                只展示带可验证链接的公开来源；没有链接的热榜导航和泛化结果不会进入这里。
               </p>
             </div>
             {data && <span className="status-pill">{data.status}</span>}
           </div>
           {!data ? (
             <div className="loading">正在准备工作台...</div>
+          ) : data.hotTopics.length === 0 ? (
+            <div className="card empty muted">
+              暂未抓到可验证公开来源。可以稍后刷新，或在资料里补充更具体的行业、地域和关注方向。
+            </div>
           ) : (
             <div className="grid grid-3">
-              {data.hotTopics.map((topic) => (
-                <article className="card topic-card" key={topic.title}>
-                  <div className="tags">
-                    {topic.tags.map((tag) => (
-                      <span className="tag" key={tag}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <h3 style={{ marginTop: 18 }}>{topic.title}</h3>
-                  <p className="muted">{topic.summary}</p>
-                  <p>{topic.fitReason}</p>
-                </article>
-              ))}
+              {data.hotTopics.map((topic) => {
+                const source = topic.sources[0];
+                return (
+                  <article className="card topic-card" key={`${topic.title}-${source?.url ?? ""}`}>
+                    <div className="tags">
+                      {topic.tags.map((tag) => (
+                        <span className="tag" key={tag}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <h3 style={{ marginTop: 18 }}>{topic.title}</h3>
+                    <p className="muted">{topic.summary}</p>
+                    <p>{topic.fitReason}</p>
+                    {source?.url ? (
+                      <div className="source-row">
+                        <span className="muted">
+                          {source.publisher} · {formatSourceTime(source.publishedAt)}
+                        </span>
+                        <a className="source-link" href={source.url} target="_blank" rel="noreferrer">
+                          查看来源
+                        </a>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
