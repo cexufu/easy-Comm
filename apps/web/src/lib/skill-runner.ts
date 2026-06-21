@@ -182,6 +182,51 @@ function parseModelJson(raw: string) {
   }
 }
 
+function markdownToModelData(raw: string, skill: Skill) {
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd());
+  const title =
+    lines.find((line) => /^#\s+/.test(line))?.replace(/^#\s+/, "").trim() ||
+    `${skillNames[skill]}结果`;
+  const summary =
+    lines.find((line) => line && !line.startsWith("#") && !line.startsWith("- "))?.trim() ||
+    "模型已返回正文，系统已按标题结构整理为可阅读结果。";
+  const sections: Array<{ heading: string; items: string[] }> = [];
+  let current: { heading: string; items: string[] } | null = null;
+
+  for (const line of lines) {
+    const heading = line.match(/^#{1,3}\s+(.+)$/)?.[1]?.trim();
+    if (heading) {
+      if (current && current.items.length) sections.push(current);
+      current = { heading, items: [] };
+      continue;
+    }
+
+    const item = line.replace(/^[-*]\s+/, "").trim();
+    if (!item) continue;
+    if (!current) current = { heading: "结果", items: [] };
+    if (!/^#/.test(item)) current.items.push(item);
+  }
+
+  if (current && current.items.length) sections.push(current);
+
+  return {
+    title,
+    summary,
+    sections: sections.length
+      ? sections
+      : [
+          {
+            heading: "模型原始结果",
+            items: [raw.trim().slice(0, 12000) || "模型返回为空。"],
+          },
+        ],
+    warnings: ["模型未返回稳定 JSON，系统已按 Markdown/正文结构整理展示。"],
+  };
+}
+
 function describeError(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Unknown model error";
@@ -191,19 +236,37 @@ async function generateStructuredModelData(
   provider: ReturnType<typeof getModelProvider> & {},
   system: string,
   user: string,
+  skill: Skill,
 ) {
   const attempts = Number(process.env.MODEL_RETRY_ATTEMPTS ?? 2);
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= Math.max(1, attempts); attempt += 1) {
     try {
-      const retryInstruction =
+      const useJsonMode = attempt === 1;
+      const retryInstruction = useJsonMode
+        ? ""
+        : "\n\n上一轮 JSON 解析失败。本轮请不要输出 JSON，请直接用 Markdown 输出最终报告。使用二级标题分段，保留选题字段名和评分。";
+      const modelSystem = useJsonMode
+        ? system
+        : [
+            system,
+            "本轮不要输出 JSON。请输出可直接展示给用户的 Markdown 正文。",
+            "热点选题必须包含：本周选题总览、选题一至选题五、备选与舍弃。",
+          ].join("\n");
+      const jsonRetryInstruction =
         attempt > 1
           ? "\n\n上一轮输出未通过 JSON 解析。请只返回一个合法 JSON 对象，不要使用 Markdown，不要解释。"
           : "";
       const raw = await withTimeout((signal) =>
-        provider.generate({ system, user: `${user}${retryInstruction}`, signal }),
+        provider.generate({
+          system: modelSystem,
+          user: `${user}${useJsonMode ? jsonRetryInstruction : retryInstruction}`,
+          jsonMode: useJsonMode,
+          signal,
+        }),
       );
+      if (!useJsonMode) return markdownToModelData(raw, skill);
       return parseModelJson(raw) as Omit<
         ReturnType<typeof demoSkillResult>,
         "requestId" | "status" | "knowledge" | "process"
@@ -405,7 +468,7 @@ export async function runSkill({
   });
 
   try {
-    const modelData = await generateStructuredModelData(provider, system, user);
+    const modelData = await generateStructuredModelData(provider, system, user, skill);
     return skillResponseSchema.parse({
       requestId: crypto.randomUUID(),
       status: "completed",

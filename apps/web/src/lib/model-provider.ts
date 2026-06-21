@@ -1,6 +1,7 @@
 type GenerateInput = {
   system: string;
   user: string;
+  jsonMode?: boolean;
   signal?: AbortSignal;
 };
 
@@ -20,7 +21,7 @@ class OpenAICompatibleProvider implements ModelProvider {
     this.name = model;
   }
 
-  async generate({ system, user, signal }: GenerateInput): Promise<string> {
+  async generate({ system, user, jsonMode = true, signal }: GenerateInput): Promise<string> {
     const maxTokens = Number(process.env.MODEL_MAX_TOKENS ?? 12000);
     const thinking = process.env.MODEL_THINKING?.trim();
     const thinkingEnabled =
@@ -37,7 +38,7 @@ class OpenAICompatibleProvider implements ModelProvider {
         temperature: 0.3,
         max_tokens: maxTokens,
         ...(thinkingEnabled ? { thinking: { type: thinking } } : {}),
-        response_format: { type: "json_object" },
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
