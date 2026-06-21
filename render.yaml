@@ -25,3 +25,5 @@ services:
         value: 5
       - key: KNOWLEDGE_MAX_CHARS
         value: 12000
+      - key: TOPHUB_BASE_URL
+        value: https://tophub.today

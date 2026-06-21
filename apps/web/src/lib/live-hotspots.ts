@@ -3,11 +3,18 @@ import type { CompanyProfile, DashboardData } from "@/lib/schemas";
 export type LiveHotspot = {
   title: string;
   summary: string;
-  sourceType: "google-news-rss" | "gdelt";
+  sourceType:
+    | "google-news-rss"
+    | "gdelt"
+    | "tophub"
+    | "toutiao-hot-board"
+    | "baidu-hot-board"
+    | "rsshub";
   publisher: string;
   url?: string;
   publishedAt: string;
   query: string;
+  heatSignal?: string;
   confidence: "high" | "medium" | "low";
 };
 
@@ -33,6 +40,14 @@ function decodeGoogleNewsUrl(rawUrl: string) {
   } catch {
     return stripTags(rawUrl);
   }
+}
+
+function decodeHtml(value: string) {
+  return stripTags(value)
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    )
+    .replace(/\\\//g, "/");
 }
 
 function normalizeTitle(title: string) {
@@ -167,6 +182,190 @@ async function fetchGdelt(query: string, signal: AbortSignal): Promise<LiveHotsp
     .filter((item) => item.title && isValidUrl(item.url));
 }
 
+async function fetchToutiaoHotBoard(signal: AbortSignal): Promise<LiveHotspot[]> {
+  const response = await fetchWithBudget(
+    "https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc",
+    signal,
+  );
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as {
+    data?: Array<{
+      Title?: string;
+      QueryWord?: string;
+      Url?: string;
+      HotValue?: string;
+      Label?: string;
+      LabelDesc?: string;
+      InterestCategory?: string[];
+    }>;
+  };
+
+  const now = new Date().toISOString();
+  return (data.data ?? [])
+    .slice(0, 30)
+    .map((item, index) => {
+      const title = item.Title || item.QueryWord || "";
+      const heatSignal = item.HotValue ? `热度 ${item.HotValue}` : `排名 ${index + 1}`;
+      return {
+        title,
+        summary: [item.LabelDesc, item.InterestCategory?.join("/")].filter(Boolean).join("；") || title,
+        sourceType: "toutiao-hot-board" as const,
+        publisher: "今日头条热榜",
+        url: item.Url,
+        publishedAt: now,
+        query: "今日头条热榜",
+        heatSignal,
+        confidence: "high" as const,
+      };
+    })
+    .filter((item) => item.title && isValidUrl(item.url));
+}
+
+async function fetchBaiduHotBoard(signal: AbortSignal): Promise<LiveHotspot[]> {
+  const response = await fetchWithBudget("https://top.baidu.com/board?tab=realtime", signal);
+  if (!response.ok) return [];
+
+  const html = await response.text();
+  const blocks = Array.from(html.matchAll(/<div class="category-wrap[\s\S]*?(?=<div class="category-wrap|<\/main>)/g))
+    .slice(0, 30)
+    .map((match) => match[0] ?? "");
+  const now = new Date().toISOString();
+
+  return blocks
+    .map((block, index) => {
+      const href = block.match(/href="(https:\/\/www\.baidu\.com\/s\?wd=[^"]+)"/)?.[1];
+      const titleMatch = block.match(/<div class="c-single-text-ellipsis">\s*([\s\S]*?)\s*<\/div>/);
+      const hotMatch = block.match(/<div class="hot-index_[^"]*">\s*([\d,]+)\s*<\/div>/);
+      const descMatch = block.match(/<div class="hot-desc_[^"]*[\s\S]*?">\s*([\s\S]*?)<a /);
+      const title = decodeHtml(titleMatch?.[1] ?? "");
+      const summary = decodeHtml(descMatch?.[1] ?? title);
+      const heatSignal = hotMatch?.[1] ? `热搜指数 ${hotMatch[1]}` : `排名 ${index + 1}`;
+      return {
+        title,
+        summary: summary || title,
+        sourceType: "baidu-hot-board" as const,
+        publisher: "百度热搜",
+        url: href?.replaceAll("&amp;", "&"),
+        publishedAt: now,
+        query: "百度热搜",
+        heatSignal,
+        confidence: "high" as const,
+      };
+    })
+    .filter((item) => item.title && isValidUrl(item.url));
+}
+
+function parseTopHubItems(html: string, publisher = "TopHub"): LiveHotspot[] {
+  const now = new Date().toISOString();
+  const anchors = Array.from(html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g));
+  const seen = new Set<string>();
+  const items: LiveHotspot[] = [];
+
+  for (const [index, match] of anchors.entries()) {
+    const href = decodeHtml(match[1] ?? "");
+    const rawText = decodeHtml(match[2] ?? "");
+    const title = rawText
+      .replace(/\s+/g, " ")
+      .replace(/^\d+\s*/, "")
+      .trim();
+    if (!title || title.length < 3 || title.length > 80) continue;
+    if (/^(首页|登录|注册|关于|广告|更多|查看|客户端|API)$/i.test(title)) continue;
+
+    let url: string | undefined;
+    try {
+      url = new URL(href, process.env.TOPHUB_BASE_URL || "https://tophub.today").toString();
+    } catch {
+      url = undefined;
+    }
+    if (!isValidUrl(url)) continue;
+
+    const key = normalizeTitle(title);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    items.push({
+      title,
+      summary: title,
+      sourceType: "tophub",
+      publisher,
+      url,
+      publishedAt: now,
+      query: publisher,
+      heatSignal: `TopHub 排名 ${index + 1}`,
+      confidence: "medium",
+    });
+    if (items.length >= 30) break;
+  }
+
+  return items;
+}
+
+async function fetchTopHub(signal: AbortSignal): Promise<LiveHotspot[]> {
+  const baseUrl = (process.env.TOPHUB_BASE_URL || "https://tophub.today").replace(/\/$/, "");
+  const configuredNodes = (process.env.TOPHUB_NODE_PATHS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const paths = configuredNodes.length ? configuredNodes : ["/"];
+  const batches = await Promise.allSettled(
+    paths.map(async (path) => {
+      const target = path.startsWith("http") ? path : `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+      const response = await fetchWithBudget(target, signal);
+      if (!response.ok) return [];
+      const html = await response.text();
+      if (/503 Service Temporarily Unavailable/i.test(html)) return [];
+      return parseTopHubItems(html, `TopHub${path === "/" ? "" : ` ${path}`}`);
+    }),
+  );
+
+  return batches.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+}
+
+async function fetchRssHubHotRoutes(signal: AbortSignal): Promise<LiveHotspot[]> {
+  const baseUrl = process.env.RSSHUB_BASE_URL?.replace(/\/$/, "");
+  if (!baseUrl) return [];
+
+  const routes = [
+    { route: "/weibo/search/hot", publisher: "微博热搜/RSSHub" },
+    { route: "/zhihu/hotlist", publisher: "知乎热榜/RSSHub" },
+    { route: "/bilibili/ranking/0/3", publisher: "B站排行榜/RSSHub" },
+  ];
+
+  const batches = await Promise.allSettled(
+    routes.map(async ({ route, publisher }) => {
+      const response = await fetchWithBudget(`${baseUrl}${route}`, signal);
+      if (!response.ok) return [];
+      const xml = await response.text();
+      const now = new Date().toISOString();
+      return Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g))
+        .slice(0, 10)
+        .map((match, index) => {
+          const item = match[1] ?? "";
+          const title = stripTags(item.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "");
+          const link = stripTags(item.match(/<link>([\s\S]*?)<\/link>/)?.[1] ?? "");
+          const publishedAt = stripTags(item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] ?? now);
+          const summary = stripTags(item.match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? title);
+          return {
+            title,
+            summary: summary || title,
+            sourceType: "rsshub" as const,
+            publisher,
+            url: link,
+            publishedAt,
+            query: publisher,
+            heatSignal: `RSSHub 排名 ${index + 1}`,
+            confidence: "medium" as const,
+          };
+        })
+        .filter((item) => item.title && isValidUrl(item.url));
+    }),
+  );
+
+  return batches.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+}
+
 export async function collectLiveHotspots(
   profile: CompanyProfile,
   input = "",
@@ -181,10 +380,16 @@ export async function collectLiveHotspots(
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const batches = await Promise.allSettled(
-      queries.flatMap((query) => [
-        fetchGoogleNews(query, controller.signal),
-        fetchGdelt(query, controller.signal),
-      ]),
+      [
+        fetchTopHub(controller.signal),
+        fetchToutiaoHotBoard(controller.signal),
+        fetchBaiduHotBoard(controller.signal),
+        fetchRssHubHotRoutes(controller.signal),
+        ...queries.flatMap((query) => [
+          fetchGoogleNews(query, controller.signal),
+          fetchGdelt(query, controller.signal),
+        ]),
+      ],
     );
     const merged = batches
       .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
@@ -218,9 +423,9 @@ export function hotspotsToDashboard(
     hotTopics: hotspots.map((item) => ({
       title: item.title,
       summary: item.summary || item.title,
-      fitReason: `与“${profile.industry} / ${profile.goal}”相关；来源查询：${item.query}`,
+      fitReason: `来源：${item.query}${item.heatSignal ? `；${item.heatSignal}` : ""}。需再判断与“${profile.industry} / ${profile.goal}”的自然连接。`,
       risk: "medium",
-      tags: [item.sourceType, item.confidence, profile.industry].slice(0, 5),
+      tags: [item.sourceType, item.heatSignal ?? item.confidence, profile.industry].slice(0, 5),
       sources: [
         {
           title: item.title,

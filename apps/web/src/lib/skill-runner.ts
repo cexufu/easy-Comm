@@ -201,6 +201,7 @@ function sourceBackedTopicFallback(
         [
           `候选来源 ${index + 1}：${item.title}`,
           `来源：${item.publisher} / ${item.sourceType}`,
+          item.heatSignal ? `热度信号：${item.heatSignal}` : "热度信号：无",
           `时间：${item.publishedAt || "未提供明确发布时间"}`,
           `链接：${item.url ?? "无"}`,
           `可用方向：围绕“${request}”判断是否有行业竞争、职业生态、监管/民生或城市公共议题切入。`,
@@ -354,12 +355,13 @@ export async function runSkill({
             url: item.url,
             publishedAt: item.publishedAt,
             query: item.query,
+            heatSignal: item.heatSignal,
             confidence: item.confidence,
           }))
         : undefined,
     liveHotspotPolicy:
       skill === "topics"
-        ? "必须优先使用 liveHotspots 中的真实公开来源做选题依据。不要输出与用户企业/行业/输入无关的 AI 产品试用、创作者短片、AI 同质化等模板选题，除非用户输入本身就是 AI 产品传播。"
+        ? "必须优先使用 liveHotspots 中的真实公开来源做选题依据。sourceType=tophub/toutiao-hot-board/baidu-hot-board/rsshub 代表平台热榜注意力信号，google-news-rss/gdelt 代表公开新闻事实依据。不要输出与用户企业/行业/输入无关的 AI 产品试用、创作者短片、AI 同质化等模板选题，除非用户输入本身就是 AI 产品传播。"
         : undefined,
     requiredProcess: process.map(({ title, detail }) => ({ title, detail })),
     knowledge: knowledge.map(({ path, heading, content }) => ({
