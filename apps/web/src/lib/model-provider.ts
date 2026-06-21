@@ -21,6 +21,11 @@ class OpenAICompatibleProvider implements ModelProvider {
   }
 
   async generate({ system, user, signal }: GenerateInput): Promise<string> {
+    const maxTokens = Number(process.env.MODEL_MAX_TOKENS ?? 12000);
+    const thinking = process.env.MODEL_THINKING?.trim();
+    const thinkingEnabled =
+      thinking && !["0", "false", "off", "disabled"].includes(thinking.toLowerCase());
+
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
@@ -30,9 +35,8 @@ class OpenAICompatibleProvider implements ModelProvider {
       body: JSON.stringify({
         model: this.model,
         temperature: 0.3,
-        ...(process.env.MODEL_THINKING
-          ? { thinking: { type: process.env.MODEL_THINKING } }
-          : {}),
+        max_tokens: maxTokens,
+        ...(thinkingEnabled ? { thinking: { type: thinking } } : {}),
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },

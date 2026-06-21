@@ -187,6 +187,38 @@ function describeError(error: unknown) {
   return "Unknown model error";
 }
 
+async function generateStructuredModelData(
+  provider: ReturnType<typeof getModelProvider> & {},
+  system: string,
+  user: string,
+) {
+  const attempts = Number(process.env.MODEL_RETRY_ATTEMPTS ?? 2);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt += 1) {
+    try {
+      const retryInstruction =
+        attempt > 1
+          ? "\n\n上一轮输出未通过 JSON 解析。请只返回一个合法 JSON 对象，不要使用 Markdown，不要解释。"
+          : "";
+      const raw = await withTimeout((signal) =>
+        provider.generate({ system, user: `${user}${retryInstruction}`, signal }),
+      );
+      return parseModelJson(raw) as Omit<
+        ReturnType<typeof demoSkillResult>,
+        "requestId" | "status" | "knowledge" | "process"
+      >;
+    } catch (error) {
+      lastError = error;
+      const message = describeError(error);
+      if (/aborted|timeout/i.test(message)) break;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(describeError(lastError));
+}
+
 function sourceBackedTopicFallback(
   profile: CompanyProfile,
   input: string,
@@ -315,6 +347,7 @@ export async function runSkill({
   const system = [
     "你是“简单传播”企业传播助手。",
     "必须完整执行对应技能，不要省略候选生成、评估、风险提示和落地建议。",
+    "The response must be valid JSON. Do not output Markdown or prose outside JSON.",
     "只输出 JSON，字段为 title、summary、sections、warnings。",
     "sections 是由 heading 和 items 组成的数组；每个 items 项应具体、可执行。",
     "如果是热点选题，必须严格按照指定 section heading 输出，不得改名、合并或省略。",
@@ -372,11 +405,7 @@ export async function runSkill({
   });
 
   try {
-    const raw = await withTimeout((signal) => provider.generate({ system, user, signal }));
-    const modelData = parseModelJson(raw) as Omit<
-      ReturnType<typeof demoSkillResult>,
-      "requestId" | "status" | "knowledge" | "process"
-    >;
+    const modelData = await generateStructuredModelData(provider, system, user);
     return skillResponseSchema.parse({
       requestId: crypto.randomUUID(),
       status: "completed",

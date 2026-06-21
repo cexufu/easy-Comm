@@ -17,10 +17,12 @@ services:
         sync: false
       - key: MODEL_NAME
         value: deepseek-v4-flash
-      - key: MODEL_THINKING
-        value: disabled
       - key: MODEL_TIMEOUT_MS
-        value: 45000
+        value: 90000
+      - key: MODEL_MAX_TOKENS
+        value: 12000
+      - key: MODEL_RETRY_ATTEMPTS
+        value: 2
       - key: KNOWLEDGE_MAX_CHUNKS
         value: 5
       - key: KNOWLEDGE_MAX_CHARS
