@@ -97,3 +97,11 @@ Context: The topic workflow can stream analysis steps, but users expect the fina
 Decision: Keep the internal evidence and scoring workflow, but make the final `topics` result one concise overview plus five topic-plan sections and a backup/discard section. Move source basis, scoring, material leads, and execution details inside each topic instead of presenting them as standalone analysis tables.
 
 Consequence: The product remains transparent during streaming while the final deliverable is easier to share with colleagues and execute.
+
+## 2026-06-21: Replace Demo Hotspots with Public Source Collection
+
+Context: The topic output was falling back to generic demo content when model generation failed, which caused unrelated recommendations such as AI product trials to appear for users like 新快报 or 快手. The dashboard also displayed demo hotspots rather than collecting public information.
+
+Decision: Add a live hotspot collection layer using public news sources without API keys, currently Google News RSS and GDELT. Feed collected sources into the topic workflow, show them on the dashboard, and make degraded topic results source-backed and contextual rather than generic demos. Expose model error details in warnings for easier deployment debugging.
+
+Consequence: The product now avoids pretending demo content is current information. The live source layer is still a first-pass public-source implementation and should later be replaced or supplemented with stronger Chinese platform/news providers, caching, citation rendering, and observability.

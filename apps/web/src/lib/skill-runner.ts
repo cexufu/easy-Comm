@@ -1,5 +1,6 @@
 import { demoSkillResult } from "@/lib/demo-data";
 import { retrieveKnowledge } from "@/lib/knowledge";
+import { collectLiveHotspots, type LiveHotspot } from "@/lib/live-hotspots";
 import { getModelProvider, withTimeout } from "@/lib/model-provider";
 import { skillResponseSchema, type CompanyProfile, type SkillResponse } from "@/lib/schemas";
 
@@ -167,6 +168,81 @@ function outputRules(skill: Skill) {
   return [...shared, ...rules[skill]].join("\n");
 }
 
+function parseModelJson(raw: string) {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fenced ?? trimmed;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1));
+    throw new Error("Model returned non-JSON content");
+  }
+}
+
+function describeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "Unknown model error";
+}
+
+function sourceBackedTopicFallback(
+  profile: CompanyProfile,
+  input: string,
+  knowledge: Array<{ path: string; heading: string }>,
+  process: SkillResponse["process"],
+  liveHotspots: LiveHotspot[],
+  cause: string,
+): SkillResponse {
+  const request = input || profile.goal;
+  const sourceItems = liveHotspots.length
+    ? liveHotspots.slice(0, 5).map((item, index) =>
+        [
+          `候选来源 ${index + 1}：${item.title}`,
+          `来源：${item.publisher} / ${item.sourceType}`,
+          `时间：${item.publishedAt || "未提供明确发布时间"}`,
+          `链接：${item.url ?? "无"}`,
+          `可用方向：围绕“${request}”判断是否有行业竞争、职业生态、监管/民生或城市公共议题切入。`,
+        ].join("｜"),
+      )
+    : [
+        "未能在公开新闻源中收集到可核验候选热点；不要使用模板化假热点。请稍后重试，或补充具体关键词、城市、行业机构/人群。",
+      ];
+
+  return skillResponseSchema.parse({
+    requestId: crypto.randomUUID(),
+    status: "degraded",
+    title: "热点选题生成未完成：已返回公开来源候选",
+    summary: `模型调用失败，未生成最终 TOP5。已基于“${profile.companyName} / ${profile.industry} / ${request}”返回公开来源候选，避免套用无关 demo。`,
+    process,
+    sections: [
+      {
+        heading: "本次没有生成最终选题的原因",
+        items: [
+          `模型调用失败：${cause}`,
+          "系统已停止使用通用 AI 产品 demo 作为降级结果，避免把快手、新快报等不同用户套成同一套方案。",
+          "请检查 Render 环境变量、模型额度、模型 JSON 输出能力和请求超时；修复后重新生成即可基于下方来源产出 TOP5。",
+        ],
+      },
+      {
+        heading: "已收集到的公开信息候选",
+        items: sourceItems,
+      },
+      {
+        heading: "下一步建议",
+        items: [
+          "优先选择与用户输入直接相关的来源，而不是泛行业新闻。",
+          "针对新快报/法制媒体类用户，应优先关注法律职业生态、司法服务供给、行业竞争、公众法律服务需求、地方治理与民生影响。",
+          "模型恢复后，每个选题应围绕一个具体来源生成：依据、为什么现在做、目标受众、执行计划、评分方向和风险边界。",
+        ],
+      },
+    ],
+    knowledge,
+    warnings: [`模型调用失败：${cause}`],
+  });
+}
+
 export async function runSkill({
   skill,
   profile,
@@ -186,6 +262,7 @@ export async function runSkill({
     skill,
     `${profile.industry} ${profile.goal} ${input}`,
   );
+  const liveHotspots = skill === "topics" ? await collectLiveHotspots(profile, input || profile.goal) : [];
   const citations = knowledge.map(({ path, heading }) => ({ path, heading }));
   await onProgress?.({
     ...process[1],
@@ -197,6 +274,16 @@ export async function runSkill({
       : "未找到强相关知识片段，将主要依据企业资料和本次输入生成。",
   });
 
+  if (skill === "topics") {
+    await onProgress?.({
+      title: "收集公开热点来源",
+      detail: liveHotspots.length
+        ? `已从公开新闻源收集 ${liveHotspots.length} 条候选来源，将作为选题依据输入模型。`
+        : "未收集到可核验公开来源；最终结果必须标明来源不足，不能生成假热点。",
+      status: "completed",
+    });
+  }
+
   for (const step of process.slice(2)) {
     await onProgress?.({ ...step, status: "running" });
     await new Promise((resolve) => setTimeout(resolve, 180));
@@ -205,6 +292,16 @@ export async function runSkill({
 
   const provider = getModelProvider();
   if (!provider) {
+    if (skill === "topics") {
+      return sourceBackedTopicFallback(
+        profile,
+        input,
+        citations,
+        process,
+        liveHotspots,
+        "当前 MODEL_PROVIDER=demo，未启用真实模型",
+      );
+    }
     return skillResponseSchema.parse(demoSkillResult(skill, profile, input, citations, process));
   }
 
@@ -247,6 +344,23 @@ export async function runSkill({
             brandSafety: 10,
           }
         : undefined,
+    liveHotspots:
+      skill === "topics"
+        ? liveHotspots.map((item) => ({
+            title: item.title,
+            summary: item.summary,
+            sourceType: item.sourceType,
+            publisher: item.publisher,
+            url: item.url,
+            publishedAt: item.publishedAt,
+            query: item.query,
+            confidence: item.confidence,
+          }))
+        : undefined,
+    liveHotspotPolicy:
+      skill === "topics"
+        ? "必须优先使用 liveHotspots 中的真实公开来源做选题依据。不要输出与用户企业/行业/输入无关的 AI 产品试用、创作者短片、AI 同质化等模板选题，除非用户输入本身就是 AI 产品传播。"
+        : undefined,
     requiredProcess: process.map(({ title, detail }) => ({ title, detail })),
     knowledge: knowledge.map(({ path, heading, content }) => ({
       path,
@@ -257,7 +371,7 @@ export async function runSkill({
 
   try {
     const raw = await withTimeout((signal) => provider.generate({ system, user, signal }));
-    const modelData = JSON.parse(raw) as Omit<
+    const modelData = parseModelJson(raw) as Omit<
       ReturnType<typeof demoSkillResult>,
       "requestId" | "status" | "knowledge" | "process"
     >;
@@ -270,10 +384,20 @@ export async function runSkill({
     });
   } catch (error) {
     console.error("skill generation failed", error);
+    if (skill === "topics") {
+      return sourceBackedTopicFallback(
+        profile,
+        input,
+        citations,
+        process,
+        liveHotspots,
+        describeError(error),
+      );
+    }
     return skillResponseSchema.parse({
       ...demoSkillResult(skill, profile, input, citations, process),
       status: "degraded",
-      warnings: ["模型调用失败，已返回可识别的降级结果。"],
+      warnings: [`模型调用失败：${describeError(error)}`],
     });
   }
 }

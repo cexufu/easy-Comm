@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { demoDashboard } from "@/lib/demo-data";
+import { collectLiveHotspots, hotspotsToDashboard } from "@/lib/live-hotspots";
 import { companyProfileSchema, dashboardSchema } from "@/lib/schemas";
 
 export async function POST(request: Request) {
@@ -8,5 +8,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "企业资料不完整" }, { status: 400 });
   }
 
-  return NextResponse.json(dashboardSchema.parse(demoDashboard(parsed.data)));
+  const hotspots = await collectLiveHotspots(parsed.data, parsed.data.goal);
+  return NextResponse.json(dashboardSchema.parse(hotspotsToDashboard(parsed.data, hotspots)));
 }

@@ -42,7 +42,9 @@
 - [ ] Add bounded retries, exponential backoff, circuit breaking, and provider fallback.
 - [ ] Add cache request coalescing and per-user/global concurrency limits.
 - [x] Build first skill orchestration for evidence-led hotspot + PR top-five selection.
-- [ ] Replace prompt-only topic evidence with live source retrieval, caching, and citation rendering.
+- [x] Add first public-source hotspot collection for dashboard and topic workflow.
+- [ ] Replace first-pass public-source collection with stronger Chinese news/social providers, caching, and citation rendering.
+- [ ] Add provider-specific model diagnostics and admin-visible failure logs.
 - [ ] Build current-day risk alert orchestration with a maximum of three alerts.
 - [ ] Add live news/social data providers with citations, caching, retries, and source fallback.
 - [ ] Add company onboarding and profile persistence.

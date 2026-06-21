@@ -30,6 +30,9 @@ class OpenAICompatibleProvider implements ModelProvider {
       body: JSON.stringify({
         model: this.model,
         temperature: 0.3,
+        ...(process.env.MODEL_THINKING
+          ? { thinking: { type: process.env.MODEL_THINKING } }
+          : {}),
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -40,7 +43,10 @@ class OpenAICompatibleProvider implements ModelProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Model request failed with ${response.status}`);
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `Model request failed with ${response.status}${body ? `: ${body.slice(0, 500)}` : ""}`,
+      );
     }
 
     const data = (await response.json()) as {
