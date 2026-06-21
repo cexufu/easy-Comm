@@ -39,18 +39,23 @@ function plannedSteps(skill: Skill, profile: CompanyProfile, input: string): Ski
   const specific: Record<Skill, SkillProgress[]> = {
     topics: [
       {
-        title: "整理热点与传播入口",
-        detail: "从行业趋势、企业目标、内容可执行性中整理可用传播入口。",
+        title: "建立用户画像与资源假设",
+        detail: "根据企业资料、行业、地域和本次需求，先推断体量、可用素材、适合的平台和不能硬蹭的边界。",
         status: "completed",
       },
       {
-        title: "生成候选选题",
-        detail: "先扩展多个候选方向，再按企业相关性、证据强度、传播温度和风险进行收敛。",
+        title: "整理热点与行业参照",
+        detail: "结合近期传播窗口、行业案例、同类品牌打法和知识库，形成候选热点池与行业对比。",
         status: "completed",
       },
       {
-        title: "筛选 TOP5",
-        detail: "保留最适合落地的五个选题，并补充执行要点与风险提示。",
+        title: "五维评分筛选",
+        detail: "按价值契合、用户匹配、业务关联、品牌安全、新闻性评分；新闻性权重最高，品牌安全保留但不压制传播机会。",
+        status: "completed",
+      },
+      {
+        title: "生成 TOP5 与舍弃理由",
+        detail: "只保留当下可发、自然相关、平台动作明确的选题，并说明舍弃哪些宽泛或硬蹭方向。",
         status: "completed",
       },
     ],
@@ -110,24 +115,34 @@ function plannedSteps(skill: Skill, profile: CompanyProfile, input: string): Ski
   return [...shared, ...specific[skill]];
 }
 
+function topicOutputRules() {
+  return [
+    "热点选题功能必须复刻“热点池 -> 品牌匹配 -> 五维评分 -> TOP5 -> 舍弃理由”的工作链路。",
+    "不要要求用户填一大堆字段。若信息不足，先基于企业名称、行业、城市、传播目标、用户输入和知识库做合理推断，并在输出中写明“画像假设”。最多提出 3 个补充问题，不得中断本次输出。",
+    "必须使用行业案例、同类品牌打法、平台内容规律和行业对比来补足上下文。不能只凭抽象概念生成选题。",
+    "如果没有实时搜索/热榜数据，不得假装已经检索实时热点。可以输出“待补源热点/行业参照”，并明确需要人工补充核验的来源。",
+    "五维评分必须出现，且权重如下：新闻性 35 分、目标用户匹配度 20 分、价值契合度 20 分、业务关联度 15 分、品牌安全度 10 分。新闻性是优先级最高的维度，新闻性低的选题即使安全也不能进入 TOP5。",
+    "品牌安全度可以适度放低，但不能忽略底线：版权、虚假宣传、政治敏感、公益作秀、蹭灾难、侵犯个人权益、明显硬蹭必须降权或舍弃。",
+    "必须先做“硬蹭一票否决”：1. 品牌与话题是否有真实自然连接；2. 用户看到是否觉得品牌出现得自然；3. 是否存在版权/舆论反噬/伦理风险。任一不通过，不得进入 TOP5。",
+    "输出必须严格包含以下 sections，heading 名称必须一致：1. 画像假设与输入补全；2. 热点池与行业参照；3. 五维评分筛选表；4. 最终 TOP5 选题；5. 舍弃清单；6. 未来五天落地节奏；7. 需要补充核验的信息。",
+    "“热点池与行业参照”至少 8 条，每条写：热点/参照、来源类型、当下触发点、适合/不适合判断。",
+    "“五维评分筛选表”至少 8 个候选，每个候选写清五项得分、总分、是否推荐。格式例：候选A｜新闻性32/35｜用户18/20｜价值17/20｜业务12/15｜安全8/10｜总分87｜推荐。",
+    "“最终 TOP5 选题”每条必须写：选题标题、当下触发点、为什么现在发、品牌自然连接、第一条内容怎么发、适合平台、所需素材、风险边界。",
+    "选题标题必须具体到事件、场景、人群、平台或时间窗口，禁止只写“AI赋能”“品牌升级”“行业趋势”“提升认知”这类宽泛方向。",
+    "“未来五天落地节奏”必须给出 Day 1 到 Day 5，每天写明确动作和产出物。",
+  ].join("\n");
+}
+
 function outputRules(skill: Skill) {
   const shared = [
     "输出必须像专业公关顾问的工作稿，而不是通用 AI 建议。",
     "每条建议都要可执行，避免空泛词，例如“提升品牌影响力”“打造行业标杆”“增强用户认知”。",
-    "如果缺少实时新闻源，不得假装已经检索到真实热点；必须把需要人工补源的地方写清楚。",
+    "区分事实、案例、行业规律与推断。没有来源的内容要标为推断或待补源。",
     "不要输出模型内部推理链路；可以输出可审计的工作过程、筛选依据、取舍理由和证据需求。",
   ];
 
   const rules: Record<Skill, string[]> = {
-    topics: [
-      "热点选题必须体现当下感，围绕未来 3-5 天可以发出的内容机会。",
-      "必须输出 5 个具体选题，每个选题都要包含：当下触发点、为什么现在发、企业切入角度、第一条内容怎么做、可用平台、风险边界。",
-      "选题标题必须具体到事件、场景、人群、平台或时间窗口，禁止只写宽泛方向。",
-      "优先选择能被用户马上执行的角度：短视频、公众号、媒体稿、小红书、CEO 观点、客户案例、行业评论、公益或联名动作。",
-      "每个选题要说明需要补充核验的实时来源，例如行业新闻、平台热榜、政策公告、品牌自有数据或用户案例。",
-      "必须包含一个“筛选与舍弃”部分，说明为什么保留这 5 个，以及哪些过宽方向被舍弃。",
-      "必须包含一个“未来五天落地节奏”部分，给出 Day 1 到 Day 5 的动作。",
-    ],
+    topics: [topicOutputRules()],
     sentiment: [
       "舆情分析必须拆分事实、情绪、利益相关方、扩散路径和回应窗口。",
       "必须给出优先级动作，区分 2 小时内、24 小时内、72 小时内。",
@@ -153,7 +168,11 @@ export async function runSkill({
 }: RunSkillInput): Promise<SkillResponse> {
   const currentDate = new Date().toISOString().slice(0, 10);
   const process = plannedSteps(skill, profile, input);
-  await onProgress?.({ title: "开始分析", detail: `启动「${skillNames[skill]}」完整工作流。`, status: "running" });
+  await onProgress?.({
+    title: "开始分析",
+    detail: `启动「${skillNames[skill]}」完整工作流。`,
+    status: "running",
+  });
   await onProgress?.(process[0]);
 
   const knowledge = await retrieveKnowledge(
@@ -193,7 +212,7 @@ export async function runSkill({
     "必须完整执行对应技能，不要省略候选生成、评估、风险提示和落地建议。",
     "只输出 JSON，字段为 title、summary、sections、warnings。",
     "sections 是由 heading 和 items 组成的数组；每个 items 项应具体、可执行。",
-    "区分事实、知识规律与推断，不得编造当前热点或来源。",
+    "如果是热点选题，必须严格按照指定 section heading 输出，不得改名、合并或省略。",
     outputRules(skill),
   ].join("\n");
 
@@ -203,10 +222,20 @@ export async function runSkill({
     freshnessWindow: skill === "topics" ? "未来 3-5 天可落地传播窗口" : undefined,
     profile,
     input,
-    qualityBar:
+    userInputPolicy:
       skill === "topics"
-        ? "宁可少而具体，不要宽泛方向；每个选题必须能让用户马上知道今天要发什么、在哪发、凭什么发、怎么避险。"
+        ? "不要依赖用户补充大量字段；先推断，输出假设，再给最多 3 个补充问题。"
         : "输出必须具体、分层、可执行。",
+    topicScoringWeights:
+      skill === "topics"
+        ? {
+            newsworthiness: 35,
+            targetAudienceFit: 20,
+            valueFit: 20,
+            businessRelevance: 15,
+            brandSafety: 10,
+          }
+        : undefined,
     requiredProcess: process.map(({ title, detail }) => ({ title, detail })),
     knowledge: knowledge.map(({ path, heading, content }) => ({
       path,

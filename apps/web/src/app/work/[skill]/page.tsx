@@ -14,7 +14,7 @@ const config = {
   topics: {
     title: "热点选题",
     eyebrow: "Trend + PR",
-    placeholder: "可选：输入希望重点关注的关键词，例如 AI 应用、品牌信任、城市产业、未来五天传播主题...",
+    placeholder: "少量输入即可：想推的产品/活动、希望借势的方向、可用案例或素材、主要平台。例：给可灵 AI 做未来 5 天选题，有产品演示和创作者案例，重点看快手/小红书。",
     button: "生成 TOP5",
   },
   sentiment: {
